@@ -1,0 +1,265 @@
+
+pacman::p_load(
+  rio,    
+  here,  
+  Matrix,
+  tidyverse, 
+  lubridate,
+  janitor,
+  data.table
+)
+
+# Import datasets
+
+data_Kinsmen <- import(here("Datasets", "Kinsmen", "data_Kinsmen.csv"))
+data_Kinsmen_dog <- import(here("Datasets", "Kinsmen", "data_Kinsmen_dog.csv"))
+data_MB <- import(here("Datasets", "Manitoba", "data_MB.csv"))
+data_MB_dog <- import(here("Datasets", "Manitoba", "data_MB_dog.csv"))
+data_Windsor <- import(here("Datasets", "Windsor", "data_Windsor.csv"))
+data_Windsor_dog <- import(here("Datasets", "Windsor", "data_Windsor_dog.csv"))
+data_NS <- import(here("Datasets", "Halifax", "data_NS.csv"))
+data_NS_dog <- import(here("Datasets", "Halifax", "data_NS_dog.csv"))
+
+lab_results_MB <- import(here("Datasets", "Manitoba", "2024_lab_results_MB.xlsx"))
+lab_results_Kinsmen <- import(here("Datasets", "Kinsmen", "2024_lab_results_Kinsmen.xlsx"))
+
+lab_results_Halifax <- import(here("Datasets", "Halifax", "2025_lab_results_Halifax_Canal.xlsx"))
+lab_results_Windsor <- import(here("Datasets", "Windsor", "2025_lab_results_Windsor.xlsx"))
+
+## MANITOBA = Load, Format and Merge Lab Results
+# Reformat <10 E. coli to 5 counts to allow averaging and merging with other sites
+
+## Load, Format and Merge Lab Results
+# For now, reformat <10 E. coli to 5 counts to allow averaging and merging with other sites
+
+lab_results <- lab_results_MB |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+data_MB <- data_MB |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+
+data_MB_dog <- data_MB_dog |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+lab_results <- lab_results |> 
+  mutate(e_coli1 = ifelse(e_coli1 == "<10", 5, as.numeric(e_coli1)),
+         e_coli2 = ifelse(e_coli2 == "<10", 5, as.numeric(e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(chlorophyll = mean(c(chlorophyll1, chlorophyll2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(phycocyanin = mean(c(phycocyanin1, phycocyanin2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli = exp(mean(log(c(e_coli1, e_coli2)), na.rm = TRUE)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_max = max(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_min = min(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> 
+  mutate(cyano_total1 = ifelse(cyano_total1 == 0, 1, as.numeric(cyano_total1)),
+         cyano_total2 = ifelse(cyano_total2 == 0, 1, as.numeric(cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total = exp(mean(log(c(cyano_total1, cyano_total2)), na.rm = TRUE)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_max = max(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_min = min(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results |> 
+  mutate(microcystins1 = ifelse(microcystins1 == "<0.2", 0.1, as.numeric(microcystins1)),
+         microcystins2 = ifelse(microcystins2 == "<0.2", 0.1, as.numeric(microcystins2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(microcystins = mean(c(microcystins1, microcystins2)), na.rm = TRUE)
+
+data_MB <- left_join(data_MB, lab_results, by = "date")
+data_MB_dog <- left_join(data_MB_dog, lab_results, by = "date")
+
+remove(lab_results, lab_results_MB)
+
+data_MB |> export(here("Datasets", "Manitoba", "data_MB_full.csv"))
+data_MB_dog |> export(here("Datasets", "Manitoba", "data_MB_dog_full.csv"))
+
+## KISNMEN-PORT PERRY = Load, Format and Merge Lab Results
+
+lab_results <- lab_results_Kinsmen |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+data_Kinsmen <- data_Kinsmen |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+
+data_Kinsmen_dog <- data_Kinsmen_dog |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(chlorophyll = mean(c(chlorophyll1, chlorophyll2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(phycocyanin = mean(c(phycocyanin1, phycocyanin2)))
+
+lab_results <- lab_results |> 
+  mutate(e_coli1 = ifelse(e_coli1 == 0, 1, as.numeric(e_coli1)),
+         e_coli2 = ifelse(e_coli2 == 0, 1, as.numeric(e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli = exp(mean(log(c(e_coli1, e_coli2)), na.rm = TRUE)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_max = max(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_min = min(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> 
+  mutate(cyano_total1 = ifelse(cyano_total1 == 0, 1, as.numeric(cyano_total1)),
+         cyano_total2 = ifelse(cyano_total2 == 0, 1, as.numeric(cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total = exp(mean(log(c(cyano_total1, cyano_total2)), na.rm = TRUE)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_max = max(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_min = min(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results |> 
+  mutate(microcystins1 = ifelse(microcystins1 == "<0.15", 0.1, as.numeric(microcystins1)),
+         microcystins2 = ifelse(microcystins2 == "<0.15", 0.1, as.numeric(microcystins2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(microcystins = mean(c(microcystins1, microcystins2)), na.rm = TRUE)
+
+data_Kinsmen <- left_join(data_Kinsmen, lab_results, by = "date")
+data_Kinsmen_dog <- left_join(data_Kinsmen_dog, lab_results, by = "date")
+
+remove(lab_results, lab_results_Kinsmen)
+
+data_Kinsmen |> export(here("Datasets", "Kinsmen", "data_Kinsmen_full.csv"))
+data_Kinsmen_dog |> export(here("Datasets", "Kinsmen", "data_Kinsmen_dog_full.csv"))
+
+
+
+
+## WINDSOR = Load, Format and Merge Lab Results
+# Reformat <20 E. coli to 10 counts to allow averaging and merging with other sites
+
+lab_results <- lab_results_Windsor |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+data_Windsor <- data_Windsor |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+
+data_Windsor_dog <- data_Windsor_dog |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+lab_results <- lab_results |> 
+  mutate(e_coli1 = ifelse(e_coli1 == "<20", 10, as.numeric(e_coli1)),
+         e_coli2 = ifelse(e_coli2 == "<20", 10, as.numeric(e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(chlorophyll = mean(c(chlorophyll1, chlorophyll2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(phycocyanin = mean(c(phycocyanin1, phycocyanin2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli = exp(mean(log(c(e_coli1, e_coli2)), na.rm = TRUE)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_max = max(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_min = min(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> 
+  mutate(cyano_total1 = ifelse(cyano_total1 == 0, 1, as.numeric(cyano_total1)),
+         cyano_total2 = ifelse(cyano_total2 == 0, 1, as.numeric(cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total = exp(mean(log(c(cyano_total1, cyano_total2)), na.rm = TRUE)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_max = max(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_min = min(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results |> 
+  mutate(microcystins1 = ifelse(microcystins1 == "<0.2", 0.1, as.numeric(microcystins1)),
+         microcystins2 = ifelse(microcystins2 == "<0.2", 0.1, as.numeric(microcystins2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(microcystins = mean(c(microcystins1, microcystins2)), na.rm = TRUE)
+
+data_Windsor <- left_join(data_Windsor, lab_results, by = "date")
+data_Windsor_dog <- left_join(data_Windsor_dog, lab_results, by = "date")
+
+remove(lab_results, lab_results_Windsor)
+
+data_Windsor |> export(here("Datasets", "Windsor", "data_Windsor_full.csv"))
+data_Windsor_dog |> export(here("Datasets", "Windsor", "data_Windsor_dog_full.csv"))
+
+
+
+## HALIFAX = Load, Format and Merge Lab Results
+
+lab_results <- lab_results_Halifax |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+data_NS <- data_NS |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+
+data_NS_dog <- data_NS_dog |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) 
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(chlorophyll = mean(c(chlorophyll1, chlorophyll2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(phycocyanin = mean(c(phycocyanin1, phycocyanin2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli = exp(mean(log(c(e_coli1, e_coli2)), na.rm = TRUE)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_max = max(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(e_coli_min = min(c(e_coli1, e_coli2)))
+
+lab_results <- lab_results |> 
+  mutate(cyano_total1 = ifelse(cyano_total1 == 0, 1, as.numeric(cyano_total1)),
+         cyano_total2 = ifelse(cyano_total2 == 0, 1, as.numeric(cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total = exp(mean(log(c(cyano_total1, cyano_total2)), na.rm = TRUE)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_max = max(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results|> rowwise() |>
+  mutate(cyano_total_min = min(c(cyano_total1, cyano_total2)))
+
+lab_results <- lab_results |> 
+  mutate(microcystins1 = ifelse(microcystins1 == "<0.2", 0.1, as.numeric(microcystins1)),
+         microcystins2 = ifelse(microcystins2 == "<0.2", 0.1, as.numeric(microcystins2)))
+
+lab_results <- lab_results |> rowwise() |>
+  mutate(microcystins = mean(c(microcystins1, microcystins2)), na.rm = TRUE)
+
+data_NS <- left_join(data_NS, lab_results, by = "date")
+data_NS_dog <- left_join(data_NS_dog, lab_results, by = "date")
+
+remove(lab_results, lab_results_Halifax)
+
+data_NS |> export(here("Datasets", "Halifax", "data_NS_full.csv"))
+data_NS_dog |> export(here("Datasets", "Halifax", "data_NS_dog_full.csv"))
