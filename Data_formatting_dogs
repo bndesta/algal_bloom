@@ -1,0 +1,206 @@
+
+pacman::p_load(
+  rio,
+  here,
+  skimr,        # get overview of data
+  Matrix,
+  tidyverse,    # data management + ggplot2 graphics, 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # statistics
+  corrr,        # correlation analysis for numeric variables
+  janitor,      # adding totals and percents to tables
+  flextable,     # converting tables to HTML
+  lubridate,     # working with dates
+  forcats       # factors
+)
+
+# Combine data from across sites/regions
+
+data_Windsor_dog <- import(here("Datasets", "Windsor", "data_Windsor_dog_full.csv"))
+data_NS_dog <- import(here("Datasets", "Halifax", "data_NS_dog_full.csv"))
+data_MB_dog <- import(here("Datasets", "Manitoba", "data_MB_dog_full.csv"))
+data_Kinsmen_dog <- import(here("Datasets", "Kinsmen", "data_Kinsmen_dog_full.csv"))
+
+data_Windsor_dog <- data_Windsor_dog |> 
+  mutate(across(everything(), as.character))
+
+data_NS_dog <- data_NS_dog |> 
+  mutate(across(everything(), as.character))
+
+data_MB_dog <- data_MB_dog |> 
+  mutate(across(everything(), as.character))
+
+data_Kinsmen_dog <- data_Kinsmen_dog |> 
+  mutate(across(everything(), as.character))
+
+data_dogs <- bind_rows(data_Windsor_dog, data_NS_dog, data_MB_dog, data_Kinsmen_dog)
+
+# Create variable to determine if follow-up was complete or not
+
+data_dogs <- data_dogs |> 
+  mutate(follow = case_when(
+    (dog_rec1 == 1 | dog_rec1 == 0) ~ "Yes", 
+    TRUE ~ "No")) |> 
+  mutate(follow = as.factor(follow)) 
+
+# Format symptom start date variable
+
+data_dogs <- data_dogs |>  
+  mutate(dog_symp_date = as.Date(dog_symp_date, format = "%Y-%m-%d")) 
+
+# Create exposure and outcome variables of interest - baseline illness
+
+data_dogs <- data_dogs |> 
+  mutate(dog_base_neuro = case_when(
+    dog_symp_seizure == "seizures" ~ 1,
+    dog_symp_balance == "balance" ~ 1,
+    dog_symp_beh == "behaviour" ~ 1,
+    dog_symp_paralysis == "paralysis" ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_base_neuro = as.numeric(dog_base_neuro))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_base_skin = case_when(
+    dog_symp_rash == "rash" ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_base_skin = as.numeric(dog_base_skin))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_base_gen = case_when(
+    dog_symp_lethargy == "lethargy" ~ 1,
+    dog_symp_appetite == "appetite" ~ 1,
+    dog_symp_weak == "weakness" ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_base_gen = as.numeric(dog_base_gen))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_base_agi = case_when(
+    dog_symp_diar == "diarrhea" ~ 1,
+    dog_symp_vomit == "vomiting" ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_base_agi = as.numeric(dog_base_agi))
+
+# Create outcome/illness variables 
+
+data_dogs <- data_dogs |> 
+  mutate(dog_symp_inc = as.numeric(dog_symp_date-ymd(date)))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_agi = case_when(
+    (dog_symptoms_diar == "diarrhea" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_vomit == "vomiting" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_agi = as.numeric(dog_agi))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_neuro = case_when(
+    (dog_symptoms_seizure == "seizures" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_balance == "balance" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_beh == "behaviour" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_paralysis == "paralysis" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_neuro = as.numeric(dog_neuro))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_skin_inf = case_when(
+    (dog_symptoms_rash == "rash" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_skin_inf = as.numeric(dog_skin_inf))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_general_ill = case_when(
+    (dog_symptoms_lethargy == "lethargy" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_appetite == "appetite" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    (dog_symptoms_weak == "weakness" & dog_symp_inc <=3 & dog_symp_inc >=0) ~ 1,
+    TRUE ~ 0)) |>
+  mutate(dog_general_ill = as.numeric(dog_general_ill))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_agi2 = case_when(
+    (dog_agi == 1 & dog_base_agi == 0) ~ "Yes",
+    TRUE ~ "No")) |>
+  mutate(dog_agi2 = as.factor(dog_agi2))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_neuro2 = case_when(
+    (dog_neuro == 1 & dog_base_neuro == 0) ~ "Yes",
+    TRUE ~ "No")) |>
+  mutate(dog_neuro2 = as.factor(dog_neuro2))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_skin_inf2 = case_when(
+    (dog_skin_inf == 1 & dog_base_skin == 0) ~ "Yes",
+    TRUE ~ "No")) |>
+  mutate(dog_skin_inf2 = as.factor(dog_skin_inf2))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_general_ill2 = case_when(
+    (dog_general_ill == 1 & dog_base_gen == 0) ~ "Yes",
+    TRUE ~ "No")) |>
+  mutate(dog_general_ill2 = as.factor(dog_general_ill2))
+
+data_dogs <- data_dogs |> 
+  mutate(dog_illness_any = case_when(
+    (dog_agi2 == "Yes" | dog_neuro2== "Yes" | dog_skin_inf2 == "Yes" | 
+       dog_general_ill2 == "Yes") ~ "Yes",
+    TRUE ~ "No")) |>
+  mutate(dog_illness_any = as.factor(dog_illness_any))
+
+# Convert various variables from text and NA to Yes/No entries
+
+data_dogs <- data_dogs |> mutate(dog_sex1 = case_when(dog_sex1 == "male" ~ "Male", TRUE ~ "Female")) |>
+  mutate(dog_sex1 = as.factor(dog_sex1))
+
+data_dogs <- data_dogs |> mutate(dog_fixed = case_when(dog_fixed == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_fixed = as.factor(dog_fixed))
+
+data_dogs <- data_dogs |> mutate(dog_cond = case_when(dog_cond == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_cond = as.factor(dog_cond))
+
+data_dogs <- data_dogs |> mutate(dog_prev_act = case_when(dog_prev_act == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_prev_act = as.factor(dog_prev_act))
+
+data_dogs <- data_dogs |> mutate(dog_water1 = case_when(dog_water1 == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_water1 = as.factor(dog_water1))
+
+data_dogs <- data_dogs |> mutate(dog_water_time = as.numeric(dog_water_time))
+
+data_dogs <- data_dogs |> mutate(dog_water_mouth = case_when(dog_water_mouth == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_water_mouth = as.factor(dog_water_mouth))
+
+data_dogs <- data_dogs |> mutate(dog_eat1 = case_when(dog_eat1 == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_eat1 = as.factor(dog_eat1))
+
+data_dogs <- data_dogs |> mutate(dog_sand1 = case_when(dog_sand1 == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_sand1 = as.factor(dog_sand1))
+
+data_dogs <- data_dogs |> mutate(dog_med_antibiotics = case_when(dog_med_antibiotics == "antibiotics" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_med_antibiotics = as.factor(dog_med_antibiotics))
+
+data_dogs <- data_dogs |> mutate(dog_med_otc = case_when(dog_med_otc == "otc_drugs" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_med_otc = as.factor(dog_med_otc))
+
+data_dogs <- data_dogs |> mutate(dog_med_none = case_when(dog_med_none == "none" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_med_none = as.factor(dog_med_none))
+
+data_dogs <- data_dogs |> mutate(dog_vet = case_when(dog_vet1 == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_vet = as.factor(dog_vet))
+
+data_dogs <- data_dogs |> mutate(dog_hospital = case_when(dog_hospital1 == "1" ~ "Yes", TRUE ~ "No")) |>
+  mutate(dog_hospital = as.factor(dog_hospital))
+
+# Extract year as factor
+
+data_dogs <- data_dogs |> 
+  mutate(date = as.Date(date, format = "%Y-%m-%d"),
+         year = year(date))
+
+# Summary data
+
+data_dogs_follow <- data_dogs |> filter(follow == "Yes") 
+
+# Export
+
+data_dogs |> export(here("Datasets", "data_dogs.xlsx"))
+
+remove(data_Windsor_dog, data_NS_dog, data_MB_dog, data_Kinsmen_dog)
