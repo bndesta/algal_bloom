@@ -1,0 +1,615 @@
+---
+title: "Beach Cohort Study: Cyanobacteria Health Risks"
+author: "Ian Young"
+date: "`r Sys.Date()`"
+format: 
+  pdf
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| warning: false
+pacman::p_load(
+  rio,
+  here,
+  tidyverse,
+  gtsummary,
+  rstatix, 
+  janitor, 
+  flextable
+)
+
+data <- import(here("Datasets", "data.xlsx"))
+data_dogs <- import(here("Datasets", "data_dogs.xlsx"))
+
+num_households <- data |> select(house_id) |> n_distinct() |> as_tibble()
+num_participants <- data |> summarize(count = n())
+house_size <- round(num_participants/num_households, digits = 2)
+num_households_dogs <- data |> distinct(house_id, .keep_all = TRUE) |> 
+  filter(pets == 1) |> summarize(count = n())
+
+num_eligiblehouse_follow <- data |> mutate(follow_date = ymd(Sys.Date())-ymd(date)) |> 
+  filter(follow_date >=8) |> select(house_id) |> n_distinct() |> as_tibble()
+num_eligible_follow <- data |> mutate(follow_date = ymd(Sys.Date())-ymd(date)) |> 
+  filter(follow_date >=8) |> summarize(count = n())
+num_follow <- data |> filter(follow == "Yes") |> summarize(count = n())
+response_rate <- round(num_follow/num_eligible_follow*100, digits = 2)
+
+num_dogs <- data_dogs |> summarize(count = n())
+
+data_follow <- data |> filter(follow == "Yes") 
+data_dogs_follow <- data_dogs |> filter(follow == "Yes") 
+```
+
+As of `r Sys.Date()`, we have recruited `r num_participants` individual participants from `r num_households` households (mean household size = `r house_size`). A summary of their responses is highlighted below. Additionally, a total of `r num_dogs` dogs have been recruited.
+
+Among `r num_eligiblehouse_follow` households and `r num_eligible_follow` individual participants that have completed the beach survey 3 or more days ago (and have had an opportunity to complete the follow-up), the **individual participant response rate** is `r response_rate`%.
+
+### Recruitment Stats by Site
+
+```{r}
+#| echo: false
+data |> group_by(site, beach) |> select(site, beach, date, house_id) |> 
+   summarize(Num_households = n_distinct(house_id),
+             Num_participants = n(), 
+             Num_days = n_distinct(date),
+             Participants_per_day = round(Num_participants/Num_days, digits = 1))
+```
+
+## Response Rate among Eligible Respondents by Site
+
+```{r}
+#| echo: false
+data |> group_by(site, beach) |> mutate(follow_date = ymd(Sys.Date())-ymd(date)) |> 
+  filter(follow_date >=8) |> 
+  select(site, beach, house_id, follow_date, follow) |> 
+  summarize(Num_households = n_distinct(house_id),
+            Num_participants = n(),
+            Response_rate = round(sum(follow=="Yes")/Num_participants*100, digits = 1))
+```
+
+## Sociodemographics
+
+# Merge age categories from 7 to 4
+
+data <- data %>%
+  dplyr::mutate(
+    age2 = dplyr::case_when(
+      age1 %in% c("0-4", "5-9", "10-14") ~ "0-14",
+      age1 == "15-19"                   ~ "15-19",
+      age1 == "20-39"                   ~ "20-39",
+      age1 %in% c("40-59", "60+")       ~ "40+",
+      age1 == "Unknown"                 ~ "Prefer not to answer",
+      TRUE                              ~ NA_character_ ))
+
+#Ordering the categories for age
+
+data$age2 <- factor(
+  data$age2,
+  levels = c("0-14", "15-19", "20-39", "40+", "Prefer not to answer"),
+  ordered = TRUE)
+
+#Ordering the categories for beach
+
+data$beach <- factor(
+  data$beach,
+  levels = c("Grand Beach West", "Grand Beach East", "Shubenacadie Dog Beach",
+             "Kinsmen Beach",  "Shubenacadie Canal", "Kinsmen",
+             "Colchester"),
+  ordered = TRUE)
+
+#Ordering the categories for education
+
+data$education2 <- factor(
+  data$education2,
+  levels = c("high school or less", "college/trades", "bachelors",
+             "post-graduate",  "Unknown"),
+  ordered = TRUE)
+
+#Ordering the categories for ethnicity
+
+data$ethnicity <- factor(
+  data$ethnicity,
+  levels = c("White", "South Asian", "East Asian",
+             "Arab",  "Southeast Asian", "Latin",
+             "Black", "Multiple ethnicities", "Indigenous", "Unknown"),
+  ordered = TRUE)
+
+## Sociodemographics
+
+```{r}
+#| echo: false
+data |> 
+  select(age1, gender, education2, residence, ethnicity) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+## Sociodemographics by beach
+
+data |> 
+  select(age2, gender, education2, residence, ethnicity, beach) |> 
+  tbl_summary(by = beach, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+
+## Baseline health and beach activities
+
+```{r}
+#| echo: false
+data |>
+  select(base_agi, base_resp, base_eye, base_skin, base_gen, cond_GI, cond_resp, cond_skin,
+         cond_allergy, cond_immune, cond_none, prev_act1, beach_exp_algae,
+         beach_exp_sunscreen, beach_exp_repellent, beach_exp_food, sand1) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Water exposures
+
+```{r}
+#| echo: false
+data |> 
+  select(water_contact, water_act_swim, water_act_surf, water_act_kite, water_act_wind,
+         water_act_wake, water_act_ski, water_act_paddle, water_act_snorkel, water_act_dive,
+         water_act_wade, water_act_sail, water_act_boat, water_act_fish, water_act_canoe,
+         water_act_kayak, water_act_other, water_exp_body, water_exp_head, water_exp_mouth) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Water exposures and activities by beach and sociodemographic varibales (age2, gender, education2, residence, ethnicity)
+
+```{r}
+#| echo: false
+data |> 
+  select(water_contact, water_act_swim, water_act_surf, water_act_kite, water_act_wind,
+         water_act_wake, water_act_ski, water_act_paddle, water_act_snorkel, water_act_dive,
+         water_act_wade, water_act_sail, water_act_boat, water_act_fish, water_act_canoe,
+         water_act_kayak, water_act_other, water_exp_body, water_exp_head, water_exp_mouth, sand1, ethnicity) |> 
+  tbl_summary(by = ethnicity, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+#Plotting four demographic variables (age, gender, education, and ethnicity) with selected exposure variables
+
+## Step 1. Exposure variables and labels
+exposure_vars <- c("water_contact",
+                   "water_act_swim",
+                   "water_act_wade",
+                   "water_exp_head",
+                   "water_exp_mouth",
+                   "sand1",
+                   "beach_exp_algae")
+
+exposure_labels <- c(
+  water_contact   = "Any water contact",
+  water_act_swim  = "Swimming",
+  water_act_wade  = "Wading",
+  water_exp_head  = "Head underwater",
+  water_exp_mouth = "Swallowing water",
+  sand1           = "Sand contact",
+  beach_exp_algae = "Touched algae or seaweed" )
+
+## Step 2. Convert Yes/No -> numeric 0/1 
+clean_yesno <- function(x) {
+  x <- trimws(as.character(x))
+  xl <- tolower(x)
+  case_when(xl %in% c("yes", "y", "1") ~ 1,
+    xl %in% c("no",  "n", "0") ~ 0,
+    TRUE ~ NA_real_  )}
+
+data[exposure_vars] <- lapply(data[exposure_vars], clean_yesno)
+
+## Step 3. Labelling factor variables
+data <- data %>%
+  mutate(
+    ## Age
+    age2_f = factor(age2,
+                    levels = c("0-14", "15-19", "20-39", "40+"),
+                    labels = c("0–14", "15–19", "20–39", "40+")),
+    
+    ## Gender (dataset values: woman/girl, man/boy, fluid/trans)
+    gender_f = recode(gender,
+                      "woman/girl" = "Woman/girl",
+                      "man/boy"    = "Man/boy",
+                      "fluid/trans"= "Gender fluid / trans"),
+    gender_f = factor(gender_f,
+                      levels = c("Woman/girl", "Man/boy", "Gender fluid / trans")),
+    
+    ## Education (dataset values: high school or less, college/trades, bachelors, post-graduate)
+    education_f = recode(education2,
+                         "high school or less" = "High school or less",
+                         "college/trades"      = "College/trades",
+                         "bachelors"           = "Bachelor’s degree",
+                         "post-graduate"       = "Post-graduate degree"),
+    education_f = factor(education_f,
+                         levels = c("High school or less",
+                                    "College/trades",
+                                    "Bachelor’s degree",
+                                    "Post-graduate degree")),
+    
+    ## Ethnicity – desired order
+    ethnicity_f = factor(ethnicity,
+                         levels = c("White",
+                                    "South Asian",
+                                    "East Asian",
+                                    "Arab",
+                                    "Southeast Asian",
+                                    "Latin",
+                                    "Black",
+                                    "Multiple ethnicities",
+                                    "Indigenous")))
+
+## Step 4. Plotting function 
+plot_exposure_by <- function(df, socio_var, legend_label) {
+  var_sym <- ensym(socio_var)
+    summary_df <- df %>%
+    filter(!is.na(!!var_sym)) %>%
+    group_by(!!var_sym) %>%
+    summarise(N = n(),
+      across(all_of(exposure_vars),
+             ~ mean(. == 1, na.rm = TRUE) * 100),
+      .groups = "drop") %>%
+    pivot_longer(cols = all_of(exposure_vars),
+      names_to  = "exposure",
+      values_to = "percent") %>%
+    mutate(exposure = recode(exposure, !!!exposure_labels),
+      exposure = factor(exposure,
+        levels = c("Any water contact", "Swimming", "Wading",
+                   "Head underwater", "Swallowing water", "Sand contact", "Touched algae or seaweed")),socio = !!var_sym)
+  
+  ymax <- max(summary_df$percent, na.rm = TRUE)
+  if (!is.finite(ymax)) ymax <- 100
+  
+  ggplot(summary_df,
+         aes(x = exposure, y = percent, fill = socio)) +
+    geom_col(position = position_dodge(width = 0.8)) +
+    scale_fill_grey(start = 0.2, end = 0.8, name = legend_label) +
+    labs(x = "Exposure",
+      y = "Participants with exposure (%)") +
+    coord_cartesian(ylim = c(0, ymax * 1.1)) +
+    theme_bw(base_size = 12) + theme(
+      legend.position    = "right",
+      axis.text.x        = element_text(angle = 45, hjust = 1),
+      plot.title         = element_blank(),
+      panel.grid.major.x = element_blank())}
+
+## Step 5. Create the four plots
+p_age       <- plot_exposure_by(data, age2_f,       legend_label = "Age group")
+p_gender    <- plot_exposure_by(data, gender_f,     legend_label = "Gender identity")
+p_education <- plot_exposure_by(data, education_f,  legend_label = "Education level")
+p_ethnicity <- plot_exposure_by(data, ethnicity_f,  legend_label = "Ethno-racial identity")
+p_age
+p_gender
+p_education
+p_ethnicity
+
+
+#Cyanobacerial count by recruitment date in 2024 and 2025
+
+data |>
+  filter(year %in% c(2024, 2025)) |>
+  ggplot(aes(x = as.Date(date),
+             y = cyano_total,
+             colour = site,
+             shape  = site)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = cyano_total_min,
+                    ymax = cyano_total_max),
+                width = 0) +
+  facet_wrap(~ year, nrow = 1, scales = "free_x") +
+  scale_y_log10() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
+  labs(
+    y      = "Cyanobacteria geometric mean (cells / 100 mL)",
+    x      = "Recruitment date",
+    colour = "Site",
+    shape  = "Site") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x     = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank())
+
+## Illness outcomes (excluding those with baseline symptoms)
+
+```{r}
+#| echo: false
+data_follow |> 
+  select(agi2, respiratory2, eye_infection2, skin_infection2, general_ill2, illness_any) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Illness severity
+
+```{r}
+#| echo: false
+data_follow |>
+  filter(illness_any == "Yes") |> 
+  select(misswork, misswork_days, med_antibiotics, med_otc, med_none, healthcare1, emergency, hospital) |>   tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Outcomes by water exposure status (excluding those with the same outcomes at baseline)
+
+```{r}
+#| echo: false
+data_follow |> 
+  select(agi2, respiratory2, eye_infection2, skin_infection2, general_ill2, illness_any,
+         water_contact) |> 
+  tbl_summary(by = water_contact, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+## Outcomes by water swallowing status (excluding those with the same outcomes at baseline)
+
+```{r}
+#| echo: false
+data_follow |> 
+  select(agi2, respiratory2, eye_infection2, skin_infection2, general_ill2, illness_any,
+         water_exp_mouth) |> 
+  tbl_summary(by = water_exp_mouth, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+# Trying to understand the effect of cyano vs. ecoli on AGI
+
+#LOESS curves and Quartiles
+
+# Step 1. Create daily dataset
+data$date <- as.Date(data$date)
+daily <- data %>%
+  group_by(date) %>%
+  summarise(
+    agi_cases   = sum(agi2 == "Yes", na.rm = TRUE),  # AGI coded 1/0
+    e_coli      = mean(e_coli, na.rm = TRUE),
+    cyano_total = mean(cyano_total, na.rm = TRUE),
+    .groups = "drop")
+
+# Step 2. LOESS smooths: AGI vs each bacteria
+df_long <- daily %>%
+  pivot_longer(
+    cols = c(e_coli, cyano_total),
+    names_to  = "bacteria",
+    values_to = "value") %>%
+  mutate(bacteria = recode(bacteria,
+                      "e_coli"      = "E. coli",
+                      "cyano_total" = "Cyanobacteria"))
+
+p_loess <- ggplot(df_long, aes(x = value, y = agi_cases)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", se = TRUE, colour = "blue") +
+  facet_wrap(~ bacteria, scales = "free_x") +
+  labs(
+    x = "Bacteria concentration",
+    y = "AGI cases per day",
+    title = "(a)" ) +
+  theme_bw() +
+  theme(
+    strip.text = element_text(size = 12, face = "bold"))
+
+# Step 3. Quartile plot: mean AGI by bacteria quartile
+daily_q <- daily %>%
+  mutate(
+    ecoli_q = ntile(e_coli, 4),
+    cyano_q = ntile(cyano_total, 4))
+df_q <- daily_q %>%
+  pivot_longer(
+    cols = c(ecoli_q, cyano_q),
+    names_to  = "bacteria",
+    values_to = "quartile") %>%
+  mutate(bacteria = recode(bacteria,
+                      "ecoli_q" = "E. coli",
+                      "cyano_q" = "Cyanobacteria")) %>%
+  filter(!is.na(quartile))
+p_quart <- ggplot(df_q, aes(x = factor(quartile), y = agi_cases)) +
+  stat_summary(fun = mean, geom = "bar", fill = "steelblue") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  facet_wrap(~ bacteria) +
+  labs(x = "Bacteria concentration quartile (1 = lowest, 4 = highest)",
+    y = "Mean AGI cases",
+    title = "(b)") +
+  theme_bw() +
+  theme(strip.text = element_text(size = 12, face = "bold"))
+
+# 4. Combine the two plots into a single figure
+grid.arrange(p_loess, p_quart, ncol = 1, heights = c(2, 1))
+
+
+## Household follow-up contact preference
+
+```{r}
+#| echo: false
+data |> distinct(house_id, preference) |>
+  select(preference)  |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Dog characteristics
+
+```{r}
+#| echo: false
+data_dogs |> 
+  select(dog_sex1, dog_fixed, dog_cond, dog_prev_act, dog_water1, dog_water_time, dog_water_mouth, dog_eat1, dog_sand1) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1), all_continuous() ~ 1),
+              type = list(dog_water_time ~ "continuous"),
+              statistic = list(dog_water_time ~ "{mean} ({sd})")) |> 
+  as_flex_table() 
+```
+
+### Recruitment Stats by Site
+
+```{r}
+#| echo: false
+data_dogs |> group_by(site, beach) |> select(site, beach, date, house_id) |> 
+  summarize(Num_households = n_distinct(house_id),
+            Num_participants = n(), 
+            Num_days = n_distinct(date),
+            Participants_per_day = round(Num_participants/Num_days, digits = 1))
+```
+
+## Response Rate among Eligible Respondents by Site
+
+```{r}
+#| echo: false
+data_dogs |> group_by(site, beach) |> mutate(follow_date = ymd(Sys.Date())-ymd(date)) |> 
+  filter(follow_date >=8) |> 
+  select(site, beach, house_id, follow_date, follow) |> 
+  summarize(Num_households = n_distinct(house_id),
+            Num_participants = n(),
+            Response_rate = round(sum(follow=="Yes")/Num_participants*100, digits = 1))
+```
+
+#Dog characteristics and exposure
+
+```{r}
+#| echo: false
+data_dogs |> 
+  select(dog_sex1, dog_fixed, dog_cond, dog_prev_act, dog_water1, dog_water_time, dog_water_mouth, dog_eat1, dog_sand1) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1), all_continuous() ~ 1),
+              type = list(dog_water_time ~ "continuous"),
+              statistic = list(dog_water_time ~ "{mean} ({sd}), min: {min}, max: {max}")) |> 
+  as_flex_table() 
+```
+#Dog exposure by beach
+data_dogs |> 
+  select(dog_sex1, dog_fixed, dog_cond, dog_prev_act, dog_water1, dog_water_time, dog_water_mouth, dog_eat1, dog_sand1, beach) |> 
+  tbl_summary(by = beach, digits = list(all_categorical() ~ c(0, 1), all_continuous() ~ 1),
+              type = list(dog_water_time ~ "continuous"),
+              statistic = list(dog_water_time ~ "{mean} ({sd}), min: {min}, max: {max}")) |> 
+  as_flex_table() 
+
+#Dog exposure by sex
+data_dogs |> 
+  select(dog_sex1, dog_fixed, dog_cond, dog_prev_act, dog_water1, dog_water_time, dog_water_mouth, dog_eat1, dog_sand1, beach) |> 
+  tbl_summary(by = dog_sex1, digits = list(all_categorical() ~ c(0, 1), all_continuous() ~ 1),
+              type = list(dog_water_time ~ "continuous"),
+              statistic = list(dog_water_time ~ "{mean} ({sd}), min: {min}, max: {max}")) |> 
+  as_flex_table() 
+
+##Dog spending time in the water - visual plot
+data_dogs <- data_dogs %>%
+  mutate(dog_sex1 = factor(dog_sex1,
+                      levels = c("Female", "Male")))
+
+ggplot(data_dogs, aes(x = dog_sex1, y = dog_water_time)) +
+  geom_boxplot(fill = "grey80", colour = "black", width = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.1, size = 1) +
+  stat_summary(fun = mean,
+               geom = "point",
+               shape = 21,
+               size = 2.5,
+               fill = "white",
+               colour = "black") +
+  labs(x = "Sex",
+    y = "Time in water (minutes)") +
+  theme_bw(base_size = 12) +
+  theme(panel.grid.major.x = element_blank(),
+    plot.title = element_blank())
+
+#Dog exposure by sex - visual with a bar chart
+
+# Step 1. Define exposure variables and labels
+dog_exposures <- c(
+  "dog_water1",
+  "dog_water_mouth",
+  "dog_eat1",
+  "dog_sand1")
+dog_exposure_labels <- c(
+  dog_water1       = "Any water contact",
+  dog_water_mouth  = "Swallowed water",
+  dog_eat1         = "Ate debris/seaweed/sand",
+  dog_sand1        = "Dug in the sand")
+# Step 2. Convert Yes/No (or 0/1) into numeric indicators
+clean_bin <- function(x){
+  x <- tolower(trimws(as.character(x)))
+  dplyr::case_when(
+    x %in% c("yes","y","1") ~ 1,
+    x %in% c("no","n","0")  ~ 0,
+    TRUE ~ NA_real_)}
+data_dogs[dog_exposures] <- lapply(data_dogs[dog_exposures], clean_bin)
+
+# 3. Clean and order sex variable
+data_dogs <- data_dogs %>%
+  mutate(
+    dog_sex1 = recode(dog_sex1,
+                      "Female" = "Female",
+                      "Male"   = "Male"),
+    dog_sex1 = factor(dog_sex1, levels = c("Female", "Male")))
+
+# 4. Summarize % exposures by dog sex
+dog_summary <- data_dogs %>%
+  group_by(dog_sex1) %>%
+  summarise(
+    N = n(),
+    across(all_of(dog_exposures),
+           ~ mean(. == 1, na.rm = TRUE) * 100),
+    .groups = "drop") %>%
+  pivot_longer(
+    cols = all_of(dog_exposures),
+    names_to = "exposure",
+    values_to = "percent") %>%
+  mutate(exposure = recode(exposure, !!!dog_exposure_labels),
+    exposure = factor(exposure,
+      levels = c("Any water contact",
+                 "Swallowed water",
+                 "Ate debris/seaweed/sand",
+                 "Dug in the sand")))
+
+# 5. Plotting the bar chart
+ggplot(dog_summary,
+       aes(x = exposure, y = percent, fill = dog_sex1)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+  scale_fill_grey(start = 0.3, end = 0.8, name = "Sex") +
+  labs(x = "Exposure",
+    y = "Dogs with exposure (%)") +
+  theme_bw(base_size = 13) +
+  theme(legend.position = "right",
+    panel.grid.major.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_blank())
+
+## Illness outcomes - dogs
+
+```{r}
+#| echo: false
+data_dogs_follow |> 
+  select(dog_agi2, dog_neuro2, dog_skin_inf2, dog_general_ill2, dog_illness_any) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+## Illness outcomes - dogs - by water contact
+data_dogs_follow |> 
+  select(dog_agi2, dog_neuro2, dog_skin_inf2, dog_general_ill2, dog_illness_any, dog_water1) |> 
+  tbl_summary(by = dog_water1, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+
+## Illness outcomes - dogs - by water swallowing
+data_dogs_follow |> 
+  select(dog_agi2, dog_neuro2, dog_skin_inf2, dog_general_ill2, dog_illness_any, dog_water_mouth) |> 
+  tbl_summary(by = dog_water_mouth, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+
+## Illness severity - dogs
+
+```{r}
+#| echo: false
+data_dogs_follow |>
+  select(dog_med_antibiotics, dog_med_otc, dog_med_none, dog_vet, dog_hospital) |> 
+  tbl_summary(digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
+
+## Compare sociodemographics of those who completed follow-up survey vs. not
+
+```{r}
+#| echo: false
+data |> mutate(follow_date = ymd(Sys.Date())-ymd(date)) |> 
+  filter(follow_date >=8) |> 
+  select(age1, gender, education2, residence, ethnicity, base_agi,
+         base_resp, base_eye, base_skin, base_gen, water_contact, water_act_swim,
+         water_act_wade, water_exp_body, water_exp_head, water_exp_mouth, follow)  |> 
+  tbl_summary(by = follow, digits = list(all_categorical() ~ c(0, 1))) |> 
+  as_flex_table() 
+```
